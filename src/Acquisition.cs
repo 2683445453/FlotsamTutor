@@ -7,14 +7,14 @@ namespace FlotsamTutor
 {
     internal static class Acquisition
     {
-        internal static IEnumerable<(BuildableProperties Station, ProductionRecipeProperties Recipe)> Recipes(ItemProperties item)
+        internal static IEnumerable<(BuildableProperties Station, ProductionRecipeProperties Recipe)> Recipes(ItemProperties item, bool ingredient = false)
         {
             foreach (var station in GameManager.Settings.BuildableSettings.Buildables)
             {
                 if (station == null || station.Prefab == null || !station.Prefab.TryGetComponent<Producer>(out var producer))
                     continue;
                 foreach (var recipe in producer.ProductionProperties.Recipes)
-                    if (recipe != null && recipe.ReturnProducesItem(item))
+                    if (recipe != null && (ingredient ? recipe.ReturnUsesItem(item) : recipe.ReturnProducesItem(item)))
                         yield return (station, recipe);
             }
         }
@@ -44,6 +44,14 @@ namespace FlotsamTutor
 
         private static void AddLandmarks(ItemProperties item, HashSet<string> locations)
         {
+            foreach (var target in LandmarkTargets())
+                if (target.Salvage.ReturnAssetComposition(target.Variant)?.Any(entry =>
+                    entry != null && entry.ItemProperties == item && entry.Amount > 0) == true)
+                    locations.Add(target.Location);
+        }
+
+        internal static IEnumerable<(string Location, LandmarkSalvageable Salvage, int Variant)> LandmarkTargets()
+        {
             var prefabField = AccessTools.Field(typeof(LandmarkBehaviour), "_landmarkPrefab");
             var variationsField = AccessTools.Field(typeof(LandmarkSalvageable), "_variations");
             foreach (var landmark in Resources.FindObjectsOfTypeAll<LandmarkBehaviour>())
@@ -56,15 +64,10 @@ namespace FlotsamTutor
                     for (int i = -1; i < (variations?.Length ?? 0); i++)
                     {
                         var target = i < 0 ? salvage : variations[i];
-                        if (target != null && salvage.ReturnAssetComposition(i)?.Any(entry =>
-                            entry != null && entry.ItemProperties == item && entry.Amount > 0) == true)
-                        {
-                            string site = landmark.Name;
-                            string landmarkObject = LandmarkObjectName(target.name);
-                            if (landmarkObject != null)
-                                site += " · " + landmarkObject;
-                            locations.Add(site);
-                        }
+                        if (target == null)
+                            continue;
+                        string name = LandmarkObjectName(target.name);
+                        yield return (name == null ? landmark.Name : $"{landmark.Name} · {name}", salvage, i);
                     }
                 }
             }

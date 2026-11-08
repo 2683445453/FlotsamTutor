@@ -11,8 +11,8 @@ namespace FlotsamTutor
         private const int RecipeWidth = 588;
         private const int RecipeHeight = 490;
         private const int ContentWidth = RecipeWidth - 44;
-        private readonly Stack<(ItemProperties Item, float Scroll)> recipeHistory =
-            new Stack<(ItemProperties, float)>();
+        private readonly Stack<(ItemProperties Item, float Scroll, bool Uses)> recipeHistory =
+            new Stack<(ItemProperties, float, bool)>();
         private RectTransform recipeWindow;
         private RectTransform recipeContent;
         private ScrollRect recipeScroll;
@@ -22,6 +22,9 @@ namespace FlotsamTutor
         private Button recipeBack;
         private Text recipeStatus;
         private ItemProperties shownItem;
+        private Button acquisitionTab;
+        private Button usesTab;
+        private bool showingUses;
 
         internal static void ShowRecipe(ItemProperties item)
         {
@@ -53,7 +56,11 @@ namespace FlotsamTutor
             AddButton(recipeWindow, "×", new Rect(RecipeWidth - 46, 11, 34, 34),
                 new Color32(247, 172, 130, 255), CloseRecipe);
 
-            var view = AddImage(recipeWindow, new Rect(14, 62, RecipeWidth - 28, RecipeHeight - 104), Color.clear);
+            acquisitionTab = AddButton(recipeWindow, "获取", new Rect(22, 59, 100, 28), TitleColor,
+                () => SwitchRecipeTab(false));
+            usesTab = AddButton(recipeWindow, "用途", new Rect(127, 59, 100, 28), ButtonColor,
+                () => SwitchRecipeTab(true));
+            var view = AddImage(recipeWindow, new Rect(14, 95, RecipeWidth - 28, RecipeHeight - 137), Color.clear);
             view.gameObject.AddComponent<RectMask2D>();
             recipeScroll = view.gameObject.AddComponent<ScrollRect>();
             recipeScroll.viewport = view.rectTransform;
@@ -86,7 +93,8 @@ namespace FlotsamTutor
             if (shownItem == item)
                 return;
             if (shownItem != null)
-                recipeHistory.Push((shownItem, recipeScroll.verticalNormalizedPosition));
+                recipeHistory.Push((shownItem, recipeScroll.verticalNormalizedPosition, showingUses));
+            showingUses = false;
             RenderRecipe(item, 1);
         }
 
@@ -95,6 +103,7 @@ namespace FlotsamTutor
             if (recipeHistory.Count > 0)
             {
                 var previous = recipeHistory.Pop();
+                showingUses = previous.Uses;
                 RenderRecipe(previous.Item, previous.Scroll);
             }
         }
@@ -129,6 +138,14 @@ namespace FlotsamTutor
                 recipeFade.alpha = Mathf.MoveTowards(recipeFade.alpha, 1, Time.unscaledDeltaTime * 10);
         }
 
+        private void SwitchRecipeTab(bool uses)
+        {
+            if (shownItem == null || showingUses == uses)
+                return;
+            showingUses = uses;
+            RenderRecipe(shownItem, 1);
+        }
+
         private void RenderRecipe(ItemProperties item, float scroll)
         {
             shownItem = item;
@@ -140,6 +157,15 @@ namespace FlotsamTutor
             {
                 child.gameObject.SetActive(false);
                 Destroy(child.gameObject);
+            }
+
+            acquisitionTab.targetGraphic.color = showingUses ? ButtonColor : TitleColor;
+            usesTab.targetGraphic.color = showingUses ? TitleColor : ButtonColor;
+            if (showingUses)
+            {
+                recipeStatus.text = "";
+                FinishRecipeLayout(RenderUses(item), scroll);
+                return;
             }
 
             var recipes = Acquisition.Recipes(item).GroupBy(entry => (Name: entry.Station.Name, entry.Recipe))
@@ -156,39 +182,7 @@ namespace FlotsamTutor
                     y += 24;
                 }
 
-                const int column = 172;
-                const int center = ContentWidth - column * 2;
-                var stationButton = AddButton(recipeContent, entry.Station.Name,
-                    new Rect(column + 6, y, center - 12, 29), ButtonColor,
-                    () => FocusRecipeStation(entry.Station, entry.Recipe));
-                var stationName = stationButton.GetComponentInChildren<Text>();
-                var stationSprite = entry.Station.GetIcon();
-                if (stationSprite != null)
-                {
-                    var stationRect = (RectTransform)stationButton.transform;
-                    var stationIcon = AddImage(stationRect, new Rect(7, 3, 24, 23), Color.white);
-                    stationIcon.sprite = stationSprite;
-                    stationIcon.preserveAspect = true;
-                    stationIcon.raycastTarget = false;
-                    Position(stationName.rectTransform, stationRect, new Rect(36, 0, center - 54, 29));
-                    stationName.alignment = TextAnchor.MiddleLeft;
-                }
-                stationName.resizeTextForBestFit = true;
-                stationName.resizeTextMinSize = 13;
-                stationName.resizeTextMaxSize = 18;
-                AddRecipeArrow(y + 48);
-
-                var time = AddImage(recipeContent, new Rect(ContentWidth / 2 - 43, y + 70, 20, 20), Color.white);
-                time.sprite = SurvivalGuideManager.Properties?.TimeSprite;
-                time.enabled = time.sprite != null;
-                time.preserveAspect = true;
-                time.raycastTarget = false;
-                Label(recipeContent, $"{entry.Recipe.ProductionTime:0.##} 秒",
-                    new Rect(ContentWidth / 2 - 17, y + 65, 90, 30), 17, Ink);
-
-                float input = AddRecipeItems("材料", entry.Recipe.RequiredItems, 0, column, y);
-                float output = AddRecipeItems("产物", entry.Recipe.ProducedItems, ContentWidth - column, column, y);
-                y += Mathf.Max(103, Mathf.Max(input, output));
+                y += AddProductionCard(entry.Station, entry.Recipe, y);
             }
 
             var sources = Acquisition.Sources(item).ToList();
@@ -208,6 +202,198 @@ namespace FlotsamTutor
             }
 
             recipeStatus.text = recipes.Count > 0 ? "基础用时 / 批 · 受工作站和工人加成影响" : "";
+            FinishRecipeLayout(y, scroll);
+        }
+
+        private float AddProductionCard(BuildableProperties station, ProductionRecipeProperties recipe, float y)
+        {
+            const int column = 172;
+            const int center = ContentWidth - column * 2;
+            var stationButton = AddButton(recipeContent, station.Name,
+                new Rect(column + 6, y, center - 12, 29), ButtonColor,
+                () => FocusRecipeStation(station, recipe));
+            var stationName = stationButton.GetComponentInChildren<Text>();
+            var stationSprite = station.GetIcon();
+            if (stationSprite != null)
+            {
+                var stationRect = (RectTransform)stationButton.transform;
+                var stationIcon = AddImage(stationRect, new Rect(7, 3, 24, 23), Color.white);
+                stationIcon.sprite = stationSprite;
+                stationIcon.preserveAspect = true;
+                stationIcon.raycastTarget = false;
+                Position(stationName.rectTransform, stationRect, new Rect(36, 0, center - 54, 29));
+                stationName.alignment = TextAnchor.MiddleLeft;
+            }
+            stationName.resizeTextForBestFit = true;
+            stationName.resizeTextMinSize = 13;
+            stationName.resizeTextMaxSize = 18;
+            AddRecipeArrow(y + 48);
+
+            var time = AddImage(recipeContent, new Rect(ContentWidth / 2 - 43, y + 70, 20, 20), Color.white);
+            time.sprite = SurvivalGuideManager.Properties?.TimeSprite;
+            time.enabled = time.sprite != null;
+            time.preserveAspect = true;
+            time.raycastTarget = false;
+            Label(recipeContent, $"{recipe.ProductionTime:0.##} 秒",
+                new Rect(ContentWidth / 2 - 17, y + 65, 90, 30), 17, Ink);
+
+            float input = AddRecipeItems("材料", recipe.RequiredItems, 0, column, y);
+            float output = AddRecipeItems("产物", recipe.ProducedItems, ContentWidth - column, column, y);
+            return Mathf.Max(103, Mathf.Max(input, output));
+        }
+
+        private void AddUseHeading(string caption, ref float y)
+        {
+            if (y > 0)
+                AddRecipeDivider(ref y);
+            Label(recipeContent, caption, new Rect(0, y, ContentWidth, 27), 20, Ink);
+            y += 32;
+        }
+
+        private float RenderUses(ItemProperties item)
+        {
+            float y = 0;
+            var recipes = Acquisition.Recipes(item, ingredient: true)
+                .GroupBy(entry => (entry.Station.Name, entry.Recipe)).Select(group => group.First()).ToList();
+            if (recipes.Count > 0)
+            {
+                AddUseHeading("制作材料", ref y);
+                for (int i = 0; i < recipes.Count; i++)
+                {
+                    if (i > 0)
+                        AddRecipeDivider(ref y);
+                    y += AddProductionCard(recipes[i].Station, recipes[i].Recipe, y);
+                }
+                recipeStatus.text = "基础用时 / 批 · 受工作站和工人加成影响";
+            }
+
+            var upgrades = ItemUses.Upgrades(item, FinishedBuildings()).ToList();
+            if (upgrades.Count > 0)
+            {
+                AddUseHeading("升级材料", ref y);
+                bool first = true;
+                bool unavailableHeading = false;
+                foreach (var upgrade in upgrades.OrderByDescending(entry => entry.Available))
+                {
+                    if (!first)
+                        AddRecipeDivider(ref y);
+                    first = false;
+                    if (!upgrade.Available && !unavailableHeading)
+                    {
+                        Label(recipeContent, "暂不可升级", new Rect(0, y, ContentWidth, 24), 16, Ink);
+                        y += 26;
+                        unavailableHeading = true;
+                    }
+                    y += AddUpgradeCard(item, upgrade.Building, upgrade.Module, upgrade.Amount, upgrade.Available, y);
+                }
+            }
+
+            var salvage = ItemUses.Salvage(item).GroupBy(entry => (entry.Location, entry.Cost,
+                    Output: string.Join(",", entry.Output.Select(output => $"{output.ItemProperties.GetInstanceID()}:{output.Amount}")
+                        .OrderBy(output => output))))
+                .Select(group => group.First()).ToList();
+            if (salvage.Count > 0)
+            {
+                AddUseHeading("拆解工具", ref y);
+                for (int i = 0; i < salvage.Count; i++)
+                {
+                    if (i > 0)
+                        AddRecipeDivider(ref y);
+                    var entry = salvage[i];
+                    var location = Label(recipeContent, entry.Location, new Rect(0, y + 26, 172, 55),
+                        17, Ink, TextAnchor.MiddleCenter);
+                    FitLabel(location);
+                    int singleCost = Mathf.CeilToInt(entry.Cost);
+                    string cost = $"拆 1 处用 {singleCost} 个";
+                    if (entry.Cost != singleCost)
+                    {
+                        int groupCost = Mathf.CeilToInt(entry.Cost * 10);
+                        cost += $"\n同类拆 10 处共用 {groupCost} 个";
+                    }
+                    FitLabel(Label(recipeContent, cost, new Rect(172, y + 4, 200, 39),
+                        17, Ink, TextAnchor.MiddleCenter));
+                    AddRecipeArrow(y + 53);
+                    y += Mathf.Max(92, AddRecipeItems("产物", entry.Output, ContentWidth - 172, 172, y));
+                }
+            }
+
+            foreach (var group in ItemUses.Other(item).GroupBy(use => use.Kind))
+            {
+                AddUseHeading(group.Key, ref y);
+                foreach (var use in group.GroupBy(entry => (entry.Detail, Building: entry.Building?.Name))
+                    .Select(entries => entries.First()))
+                {
+                    int detailsWidth = use.Building != null ? ContentWidth - 195 : ContentWidth;
+                    var detail = Label(recipeContent, use.Detail, new Rect(4, y, detailsWidth - 8, 30), 17, Ink);
+                    float height = Mathf.Max(32, detail.preferredHeight);
+                    detail.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+                    if (use.Building != null)
+                    {
+                        var button = AddButton(recipeContent, use.Building.Name,
+                            new Rect(detailsWidth + 4, y, ContentWidth - detailsWidth - 4, 29), ButtonColor,
+                            () => FocusRecipeStation(use.Building, null));
+                        FitLabel(button.GetComponentInChildren<Text>());
+                    }
+                    y += height + 3;
+                }
+            }
+            if (y == 0)
+            {
+                Label(recipeContent, "暂无已知用途", new Rect(0, 0, ContentWidth, 30), 18, Ink);
+                y = 30;
+            }
+            return y;
+        }
+
+        private float AddUpgradeCard(ItemProperties item, BuildableProperties building, ModuleProperties module, int amount, bool available, float y)
+        {
+            var button = AddButton(recipeContent, "", new Rect(59, y + 18, 52, 52), available ? ButtonColor : new Color32(178, 183, 183, 255),
+                () => FocusRecipeStation(building, null, upgrade: module == null, module: module));
+            button.interactable = available;
+            var icon = AddCardIcon((RectTransform)button.transform, building.GetIcon(), new Rect(5, 5, 42, 42));
+            if (!available && icon != null)
+                icon.color = new Color32(140, 140, 140, 180);
+            FitLabel(Label(recipeContent, building.Name, new Rect(0, y + 70, 172, 25), 17, Ink, TextAnchor.MiddleCenter));
+            AddCardIcon(recipeContent, item.InventorySprite, new Rect(176, y + 9, 24, 24));
+            FitLabel(Label(recipeContent, item.LocalizedName, new Rect(205, y + 7, 112, 28), 17, Ink));
+            FitLabel(Label(recipeContent, $"×{amount}", new Rect(319, y + 7, 49, 28),
+                17, Ink, TextAnchor.MiddleRight));
+            AddRecipeArrow(y + 49);
+
+            const int effectWidth = 172;
+            float effectX = ContentWidth - effectWidth;
+            string upgradeName = module != null ? module.GetName() : building.Upgrade.Name;
+            FitLabel(Label(recipeContent, upgradeName, new Rect(effectX, y + 5, effectWidth, 28),
+                17, Ink, TextAnchor.MiddleCenter));
+            string description = module != null ? module.GetDescription() : building.Upgrade.Description;
+            description = System.Text.RegularExpressions.Regex.Replace(description ?? "", "<[^>]+>", "").Trim();
+            var effect = Label(recipeContent, string.IsNullOrEmpty(description) ? "暂无效果说明" : description,
+                new Rect(effectX + 3, y + 34, effectWidth - 6, 60), 16, Ink, TextAnchor.UpperLeft);
+            float height = Mathf.Max(60, effect.preferredHeight + 2);
+            effect.rectTransform.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, height);
+            return Mathf.Max(104, 40 + height);
+        }
+
+        private Image AddCardIcon(RectTransform parent, Sprite sprite, Rect bounds)
+        {
+            if (sprite == null)
+                return null;
+            var image = AddImage(parent, bounds, Color.white);
+            image.sprite = sprite;
+            image.preserveAspect = true;
+            image.raycastTarget = false;
+            return image;
+        }
+
+        private static void FitLabel(Text label)
+        {
+            label.resizeTextForBestFit = true;
+            label.resizeTextMinSize = 13;
+            label.resizeTextMaxSize = label.fontSize;
+        }
+
+        private void FinishRecipeLayout(float y, float scroll)
+        {
             recipeContent.SetSizeWithCurrentAnchors(RectTransform.Axis.Vertical, y + 4);
             recipeScroll.StopMovement();
             Canvas.ForceUpdateCanvases();
@@ -269,28 +455,52 @@ namespace FlotsamTutor
             return 30 + Mathf.Max(1, (index + 2) / 3) * 48;
         }
 
-        private void FocusRecipeStation(BuildableProperties station, ProductionRecipeProperties recipe)
+        private static IEnumerable<Buildable> FinishedBuildings()
+        {
+            var town = Community.PlayerCommunity;
+            if (town == null)
+                return Enumerable.Empty<Buildable>();
+            var camera = CameraController.Instance;
+            var focus = camera != null ? camera.ReturnFocusPoint() : Vector3.zero;
+            return town.Buildables.Where(building => building != null && building.Properties != null &&
+                    building.BuildPhase == BuildPhase.Finished && building.gameObject.activeInHierarchy)
+                .OrderBy(building => (building.transform.position - focus).sqrMagnitude);
+        }
+
+        private void FocusRecipeStation(BuildableProperties station, ProductionRecipeProperties recipe, bool upgrade = false, ModuleProperties module = null)
         {
             var camera = CameraController.Instance;
             var town = Community.PlayerCommunity;
             if (camera == null || town == null)
                 return;
-            var focus = camera.ReturnFocusPoint();
-            var target = town.Buildables.Where(buildable => buildable != null &&
-                    buildable.BuildPhase == BuildPhase.Finished && buildable.gameObject.activeInHierarchy &&
-                    (buildable.Properties == station ||
-                        (buildable.Properties.Name == station.Name && buildable.TryGetComponent<Producer>(out var producer) &&
-                            producer.ProductionProperties.Recipes.Contains(recipe))))
-                .OrderBy(buildable => (buildable.transform.position - focus).sqrMagnitude)
-                .FirstOrDefault();
+            if ((upgrade && !station.Upgrade.IsUnlocked()) || (module != null && !module.IsUnlocked()))
+            {
+                recipeStatus.text = "该升级尚未解锁";
+                return;
+            }
+            var target = FinishedBuildings().FirstOrDefault(buildable =>
+                (module == null || (buildable.TryReturnBuildableExtendable<ModuleManager>(out var manager) &&
+                    !manager.IsActiveModule(module))) &&
+                (buildable.Properties == station ||
+                    (recipe != null && buildable.Properties.Name == station.Name && buildable.TryGetComponent<Producer>(out var producer) &&
+                        producer.ProductionProperties.Recipes.Contains(recipe))));
             if (target == null)
             {
-                recipeStatus.text = "城镇里没有已建成的此类工作站";
+                recipeStatus.text = upgrade || module != null ? "城镇里没有可升级的此类建筑" : "城镇里没有已建成的此类工作站";
                 return;
             }
             CloseRecipe();
             camera.Lock(target.gameObject, Mathf.Min(camera.CurrentZoomLevel, 0.5f));
-            target.OnSelected(playSelectionSound: true);
+            var link = target.GetComponentsInChildren<SelectionLink>()
+                .FirstOrDefault(candidate => candidate.isActiveAndEnabled && candidate.Type == ObjectType.Buildable &&
+                    candidate.ObjectToSelect == target.gameObject && candidate.GetComponent<QuickConnecting>() == null);
+            if (link != null && Selector.ReturnSelectedObjectComponent<Buildable>(ObjectType.Buildable) != target)
+                Selector.Select(link);
+            else
+            {
+                target.OnSelected(playSelectionSound: true);
+                GameManager.HighlightManager?.HighlightObject(target.OutlineRenderer);
+            }
         }
     }
 }
