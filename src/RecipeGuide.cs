@@ -55,9 +55,7 @@ namespace FlotsamTutor
         {
             if (RecipeShortcut.Key != KeyCode.Mouse1 && RecipeShortcut.Pressed && EventSystem.current != null &&
                 Community.PlayerCommunity != null && !LoadingScreen.IsLoading &&
-                UIManager.State != UIState.Paused && UIManager.State != UIState.Typing &&
-                !(EventSystem.current.currentSelectedGameObject?.GetComponent<InputField>()?.isFocused ?? false) &&
-                !(EventSystem.current.currentSelectedGameObject?.GetComponent<TMPro.TMP_InputField>()?.isFocused ?? false))
+                UIManager.State != UIState.Paused && UIManager.State != UIState.Typing && !IsTextInputFocused())
             {
                 var hit = MouseHit();
                 if (hit.gameObject != null)
@@ -70,6 +68,15 @@ namespace FlotsamTutor
                 TutorPanel.ShowDiscard(rightItem);
             else
                 TutorPanel.ShowRecipe(rightItem);
+        }
+
+        private static bool IsTextInputFocused()
+        {
+            var selected = EventSystem.current.currentSelectedGameObject;
+            if (selected == null)
+                return false;
+            return (selected.TryGetComponent<InputField>(out var input) && input.isFocused) ||
+                (selected.TryGetComponent<TMPro.TMP_InputField>(out var tmpInput) && tmpInput.isFocused);
         }
 
         private static RaycastResult MouseHit()
