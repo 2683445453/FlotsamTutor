@@ -69,6 +69,7 @@ namespace FlotsamTutor
         private Quaternion committedMapRotation;
         private float sailDistance;
         private float nextMapUpdate;
+        private float nextSailSync;
         private float mapZoom = 215f;
         private Vector2 minimapOffset;
         private MouseMovementCursorProperties.Gear sailGear;
@@ -432,10 +433,12 @@ namespace FlotsamTutor
             sailDistance = 0f;
             sailGear = MouseMovementCursorProperties.Gear.Neutral;
             nextMapUpdate = 0f;
+            nextSailSync = 0f;
             physics.enabled = true;
             ApplyCommittedMapPose();
             sailing = true;
             backgroundMap.Townheart.OnStartMove();
+            StartSailAnimations();
             MovementEvent.DispatchStartedMoving();
         }
 
@@ -456,11 +459,15 @@ namespace FlotsamTutor
         private void MeasureSailing()
         {
             var position = physics.Position;
-            float distance = Vector3.Distance(lastSailPosition, position);
+            var displacement = position - lastSailPosition;
+            float distance = displacement.magnitude;
             lastSailPosition = position;
             if (distance > 0f)
             {
                 sailDistance += distance;
+                AdvanceSailPropellers(distance);
+                if (experimentalSailingTextures)
+                    AdvanceSailSurface(Quaternion.Inverse(physics.Rotation) * displacement);
                 Community.PlayerCommunity.Engine.ConsumeEnergy(distance);
             }
         }
@@ -468,9 +475,13 @@ namespace FlotsamTutor
         private void LateUpdate()
         {
             if (!sailing || backgroundMap == null || physics == null)
+            {
+                UpdateSailSurface();
                 return;
+            }
 
             MeasureSailing();
+            UpdateSailSurface();
             if (Time.unscaledTime >= nextMapUpdate)
             {
                 nextMapUpdate = Time.unscaledTime + 0.2f;
@@ -478,6 +489,10 @@ namespace FlotsamTutor
                 UpdateMapTiles(backgroundMap);
                 UpdateMapScouting(backgroundMap);
                 minimapFogOverlay.Invalidate();
+            }
+            if (Time.unscaledTime >= nextSailSync)
+            {
+                nextSailSync = Time.unscaledTime + 0.05f;
                 SynchronizeSailing();
             }
         }
@@ -508,7 +523,17 @@ namespace FlotsamTutor
             }
 
             town.StopNonInteractableProjects(position, GameManager.Settings.GameplaySettings.InteractionRadius);
-            if (!world.RepositionTownheart(position, rotation, sailDistance))
+            bool moved;
+            synchronizingSail = experimentalSailingTextures;
+            try
+            {
+                moved = world.RepositionTownheart(position, rotation, sailDistance);
+            }
+            finally
+            {
+                synchronizingSail = false;
+            }
+            if (!moved)
             {
                 ApplyCommittedMapPose();
                 StopVelocity(physics, 0f, 0f);
@@ -548,6 +573,7 @@ namespace FlotsamTutor
                 StopVelocity(physics, 0f, 0f);
                 physics.enabled = false;
                 map.AddMovementBlocker(map);
+                StopSailAnimations();
                 map.Townheart.OnEndMove();
                 MovementEvent.DispatchStoppedMoving();
             }

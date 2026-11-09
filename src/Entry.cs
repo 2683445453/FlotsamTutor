@@ -6,7 +6,7 @@ using UnityEngine;
 
 namespace FlotsamTutor
 {
-    [BepInPlugin("local.flotsam.tutor", "Flotsam Tutor", "1.3.0")]
+    [BepInPlugin("local.flotsam.tutor", "Flotsam Tutor", "1.4.0")]
     public sealed class Entry : BaseUnityPlugin
     {
         private const string SupportedGameHash = "5B5C9F730ED71D5F66C0267064FC57667D2FF5644A018E9189B140CE025C1CD8";

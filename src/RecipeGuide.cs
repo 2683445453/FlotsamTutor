@@ -91,6 +91,10 @@ namespace FlotsamTutor
 
         private static ItemProperties FindItem(RaycastResult hit)
         {
+            var questLinks = hit.gameObject.GetComponent<QuestItemLinks>();
+            if (questLinks != null)
+                return questLinks.FindItem(hit);
+
             var settings = GameManager.Settings?.ItemSettings;
             if (settings == null)
                 return null;

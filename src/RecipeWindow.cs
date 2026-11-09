@@ -267,6 +267,25 @@ namespace FlotsamTutor
                 recipeStatus.text = "基础用时 / 批 · 受工作站和工人加成影响";
             }
 
+            var construction = ItemUses.Construction(item).ToList();
+            if (construction.Count > 0)
+            {
+                AddUseHeading("建造材料", ref y);
+                for (int i = 0; i < construction.Count; i++)
+                {
+                    if (i > 0)
+                        AddRecipeDivider(ref y);
+                    var entry = construction[i];
+                    const int column = 172;
+                    float outputX = ContentWidth - column;
+                    AddRecipeArrow(y + 48);
+                    AddCardIcon(recipeContent, entry.Placeable.GetIcon(), new Rect(outputX + 65, y + 7, 42, 42));
+                    FitLabel(Label(recipeContent, entry.Placeable.GetName(), new Rect(outputX, y + 52, column, 36),
+                        18, Ink, TextAnchor.MiddleCenter));
+                    y += Mathf.Max(92, AddRecipeItems("材料", entry.Materials, 0, column, y));
+                }
+            }
+
             var upgrades = ItemUses.Upgrades(item, FinishedBuildings()).ToList();
             if (upgrades.Count > 0)
             {
@@ -481,13 +500,25 @@ namespace FlotsamTutor
             var target = FinishedBuildings().FirstOrDefault(buildable =>
                 (module == null || (buildable.TryReturnBuildableExtendable<ModuleManager>(out var manager) &&
                     !manager.IsActiveModule(module))) &&
-                (buildable.Properties == station ||
-                    (recipe != null && buildable.Properties.Name == station.Name && buildable.TryGetComponent<Producer>(out var producer) &&
-                        producer.ProductionProperties.Recipes.Contains(recipe))));
+                (buildable.Properties == station || (recipe != null && buildable.Properties.Name == station.Name)) &&
+                (recipe == null || (buildable.TryReturnBuildableExtendable<Producer>(out var producer) &&
+                    producer.TryReturnRecipe(recipe, out _))));
             if (target == null)
             {
                 recipeStatus.text = upgrade || module != null ? "城镇里没有可升级的此类建筑" : "城镇里没有已建成的此类工作站";
                 return;
+            }
+            Producer selectedProducer = null;
+            if (recipe != null && target.TryReturnBuildableExtendable<Producer>(out selectedProducer) &&
+                selectedProducer.TryReturnRecipe(recipe, out var selectedRecipe))
+            {
+                if (!selectedRecipe.IsUnlocked())
+                {
+                    recipeStatus.text = "该配方尚未解锁";
+                    return;
+                }
+                if (selectedProducer.SelectedRecipeIndex != selectedRecipe.Index)
+                    selectedProducer.SetSelectedRecipe(selectedRecipe.Index);
             }
             CloseRecipe();
             camera.Lock(target.gameObject, Mathf.Min(camera.CurrentZoomLevel, 0.5f));
@@ -500,6 +531,37 @@ namespace FlotsamTutor
             {
                 target.OnSelected(playSelectionSound: true);
                 GameManager.HighlightManager?.HighlightObject(target.OutlineRenderer);
+            }
+            if (selectedProducer != null)
+                ShowStationRecipePanel(target, selectedProducer);
+        }
+
+        private static void ShowStationRecipePanel(Buildable target, Producer producer)
+        {
+            var panel = FindObjectsByType<BuildablePanel>(FindObjectsSortMode.None)
+                .FirstOrDefault(candidate => candidate.Buildable == target);
+            if (panel == null)
+                return;
+
+            panel.Initialize(target, refresh: true);
+            var recipePanel = producer.ProductionProperties.Type == Producer.Type.Farm
+                ? (MonoBehaviour)panel.GetComponentInChildren<FarmPanel>(true)
+                : panel.GetComponentInChildren<ProductionPanel>(true);
+            var tabs = panel.GetComponentInChildren<PanelTabContainer>(true);
+            if (recipePanel == null || tabs == null || !tabs.isActiveAndEnabled ||
+                !(HarmonyLib.AccessTools.Field(typeof(PanelTabContainer), "_activeTabs").GetValue(tabs) is System.Collections.IEnumerable pages))
+                return;
+
+            foreach (var page in pages)
+            {
+                var pageType = page.GetType();
+                if (HarmonyLib.AccessTools.Field(pageType, "Page").GetValue(page) is Transform content &&
+                    recipePanel.transform.IsChildOf(content) &&
+                    HarmonyLib.AccessTools.Field(pageType, "Tab").GetValue(page) is Toggle toggle)
+                {
+                    toggle.isOn = true;
+                    break;
+                }
             }
         }
     }

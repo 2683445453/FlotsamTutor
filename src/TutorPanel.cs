@@ -10,6 +10,7 @@ namespace FlotsamTutor
         private const string PatchId = "local.flotsam.tutor";
         internal const string MapSetting = "FlotsamTutor.Minimap";
         internal const string SailSetting = "FlotsamTutor.QuickSailing";
+        internal const string SailingTexturesSetting = "FlotsamTutor.ExperimentalSailingTextures";
         private static readonly Color PanelColor = new Color32(239, 247, 243, 255);
         private static readonly Color TitleColor = new Color32(151, 213, 200, 255);
         private static readonly Color FieldColor = new Color32(253, 250, 231, 255);
@@ -63,6 +64,7 @@ namespace FlotsamTutor
             RecipeGuide.HandleMouse();
             showMinimap = PlayerPrefs.GetInt(MapSetting, 0) != 0;
             quickSailing = PlayerPrefs.GetInt(SailSetting, 1) != 0;
+            experimentalSailingTextures = PlayerPrefs.GetInt(SailingTexturesSetting, 0) != 0;
             KeepWindowOnScreen();
             UpdateNavigation();
         }

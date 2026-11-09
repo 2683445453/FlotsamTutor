@@ -16,6 +16,7 @@ namespace FlotsamTutor
                 row = row.parent;
             Add(row, "显示小地图", TutorPanel.MapSetting, false);
             Add(row, "小地图快捷航行", TutorPanel.SailSetting, true);
+            Add(row, "实验功能 · 航行贴图滚动", TutorPanel.SailingTexturesSetting, false);
             AddShortcut(row);
         }
 

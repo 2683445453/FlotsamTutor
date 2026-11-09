@@ -7,6 +7,23 @@ namespace FlotsamTutor
 {
     internal static class ItemUses
     {
+        internal static IEnumerable<(PlaceableProperties Placeable, CountedItemProperty[] Materials)> Construction(ItemProperties item)
+        {
+            var settings = GameManager.Settings.BuildableSettings;
+            var placeables = settings.Buildables.Cast<PlaceableProperties>().Concat(settings.Decorations);
+            foreach (var placeable in placeables)
+            {
+                if (placeable == null || !((IPlaceable)placeable).ShowToggle ||
+                    (placeable is BuildableProperties building &&
+                        (building.Prefab == null ||
+                            (building.PlacementCursorProperties == null && (building.RequiredResources?.Length ?? 0) == 0))))
+                    continue;
+                var materials = placeable.ReturnTooltipRequiredResources();
+                if (Count(materials, item) > 0)
+                    yield return (placeable, materials);
+            }
+        }
+
         internal static IEnumerable<(string Location, float Cost, IReadOnlyList<CountedItemProperty> Output)> Salvage(ItemProperties item)
         {
             foreach (var target in Acquisition.LandmarkTargets())
