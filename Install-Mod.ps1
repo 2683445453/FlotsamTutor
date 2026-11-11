@@ -5,7 +5,10 @@
 )
 
 $ErrorActionPreference = 'Stop'
-$expectedHash = '5B5C9F730ED71D5F66C0267064FC57667D2FF5644A018E9189B140CE025C1CD8'
+$expectedHashes = @(
+    '5B5C9F730ED71D5F66C0267064FC57667D2FF5644A018E9189B140CE025C1CD8',
+    '24830B47DB1BC737C107425D131DA4A6F36715BF19416AF1E4A1212875E9E698'
+)
 
 function Test-GameDirectory([string]$Path) {
     $Path -and (Test-Path -LiteralPath ([IO.Path]::Combine($Path, 'Flotsam.exe')) -PathType Leaf -ErrorAction SilentlyContinue) -and
@@ -67,8 +70,8 @@ try {
     }
 
     $gameAssembly = Join-Path $game 'Flotsam_Data/Managed/Assembly-CSharp.dll'
-    if ((Get-FileHash -LiteralPath $gameAssembly -Algorithm SHA256).Hash -ne $expectedHash) {
-        throw '此游戏版本不兼容。当前发行包适用于已验证的 Flotsam 1.0.1f9 构建。'
+    if ((Get-FileHash -LiteralPath $gameAssembly -Algorithm SHA256).Hash -notin $expectedHashes) {
+        throw '此游戏版本不兼容。当前发行包适用于已验证的 Flotsam 1.0.1f9、1.0.1f10 构建。'
     }
     $plugin = Join-Path $PSScriptRoot 'payload/Flotsam.Tutor.dll'
     $loader = Join-Path $PSScriptRoot 'payload/loader'

@@ -10,7 +10,7 @@
 
 更新时运行新版 `Install.cmd`。卸载时退出游戏并运行 `Uninstall.cmd`。卸载保留可供其他模组使用的 BepInEx。
 
-适用于已验证的 Flotsam `1.0.1f9` Windows x64 构建。安装包内置 [BepInEx 5.4.23.6](https://github.com/BepInEx/BepInEx/releases/tag/v5.4.23.6)，安装器会检查游戏版本和已有加载器冲突。
+支持 Flotsam `1.0.1f9`、`1.0.1f10` Windows x64 构建。安装包内置 [BepInEx 5.4.23.6](https://github.com/BepInEx/BepInEx/releases/tag/v5.4.23.6)，安装器会检查游戏版本和已有加载器冲突。
 
 ## 游戏内操作
 

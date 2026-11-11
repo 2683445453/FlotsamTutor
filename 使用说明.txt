@@ -7,7 +7,7 @@ Flotsam Tutor｜Windows x64
 
 更新或卸载
 退出游戏后，运行新版 Install.cmd 即可更新。双击 Uninstall.cmd 可移除模组，BepInEx 加载器会保留供其他模组使用。
-支持已验证的 Flotsam 1.0.1f9 构建。随包附带 BepInEx 5.4.23.6 Windows x64，已兼容的现有安装会直接复用。
+支持 Flotsam 1.0.1f9、1.0.1f10 构建。随包附带 BepInEx 5.4.23.6 Windows x64，已兼容的现有安装会直接复用。
 加载器及其附带依赖来自 https://github.com/BepInEx/BepInEx/releases/tag/v5.4.23.6
 
 游戏内

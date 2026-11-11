@@ -6,10 +6,11 @@ using UnityEngine;
 
 namespace FlotsamTutor
 {
-    [BepInPlugin("local.flotsam.tutor", "Flotsam Tutor", "1.4.0")]
+    [BepInPlugin("local.flotsam.tutor", "Flotsam Tutor", "1.4.1")]
     public sealed class Entry : BaseUnityPlugin
     {
         private const string SupportedGameHash = "5B5C9F730ED71D5F66C0267064FC57667D2FF5644A018E9189B140CE025C1CD8";
+        private const string UpdatedGameHash = "24830B47DB1BC737C107425D131DA4A6F36715BF19416AF1E4A1212875E9E698";
 
         private void Awake()
         {
@@ -19,7 +20,7 @@ namespace FlotsamTutor
                 using (var sha = SHA256.Create())
                 {
                     var hash = BitConverter.ToString(sha.ComputeHash(file)).Replace("-", "");
-                    if (hash != SupportedGameHash)
+                    if (hash != SupportedGameHash && hash != UpdatedGameHash)
                     {
                         Logger.LogWarning("Unsupported Flotsam version. The mod was not loaded.");
                         return;
